@@ -1,0 +1,14 @@
+#ifndef _XIMAGE_FORMATS_HPP_____
+#define _XIMAGE_FORMATS_HPP_____
+
+// RGB formats
+#define XIMAGE_FORMAT_RGBX 0
+#define XIMAGE_FORMAT_BGRX 1
+#define XIMAGE_FORMAT_XRGB 2
+#define XIMAGE_FORMAT_XBGR 3
+#define XIMAGE_FORMAT_RGBA 4
+#define XIMAGE_FORMAT_BGRA 5
+#define XIMAGE_FORMAT_ARGB 6
+#define XIMAGE_FORMAT_ABGR 7
+
+#endif

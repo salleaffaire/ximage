@@ -14,6 +14,11 @@ int XImageBytesPerPixel(int format) {
     case XIMAGE_FORMAT_U:
     case XIMAGE_FORMAT_V:
       return 1;
+    case XIMAGE_FORMAT_YUYV:
+    case XIMAGE_FORMAT_UV:
+      return 2;
+    case XIMAGE_FORMAT_YUV:
+      return 3;
     case XIMAGE_FORMAT_RGBX:
     case XIMAGE_FORMAT_BGRX:
     case XIMAGE_FORMAT_XRGB:
@@ -22,6 +27,7 @@ int XImageBytesPerPixel(int format) {
     case XIMAGE_FORMAT_BGRA:
     case XIMAGE_FORMAT_ARGB:
     case XIMAGE_FORMAT_ABGR:
+    case XIMAGE_FORMAT_YUVA:
       return 4;
     default:
       return 0;
@@ -38,6 +44,14 @@ std::string XImageFormatToString(int format) {
       return "U";
     case XIMAGE_FORMAT_V:
       return "V";
+    case XIMAGE_FORMAT_YUV:
+      return "YUV";
+    case XIMAGE_FORMAT_YUYV:
+      return "YUYV";
+    case XIMAGE_FORMAT_UV:
+      return "UV";
+    case XIMAGE_FORMAT_YUVA:
+      return "YUVA";
     case XIMAGE_FORMAT_RGBX:
       return "RGBX";
     case XIMAGE_FORMAT_BGRX:
@@ -54,6 +68,7 @@ std::string XImageFormatToString(int format) {
       return "ARGB";
     case XIMAGE_FORMAT_ABGR:
       return "ABGR";
+
     default:
       return "INVALID";
   }  // switch

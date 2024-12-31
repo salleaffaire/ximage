@@ -24,6 +24,11 @@ int main(int argc, char *argv[]) {
   }
   std::cout << b << std::endl;
 
+  std::cout << "Creating another XImage<char> object ..." << std::endl;
+  int formats[] = {XIMAGE_FORMAT_RGBA};
+  XImage<char> d(4, 4, 1, formats);
+  std::cout << d << std::endl;
+
   std::cout << "Creating a third XImage<char> object ..." << std::endl;
   XImage<char> c = b;
   std::cout << c << std::endl;

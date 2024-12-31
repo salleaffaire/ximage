@@ -12,6 +12,57 @@
 
 #define MAX_NUMBER_OF_PLANES 8
 
+template <typename T>
+class XPlane {
+ public:
+  XPlane() {
+    mWidth = 0;
+    mHeight = 0;
+    mStride = 0;
+    mpData = nullptr;
+    mFormat = XIMAGE_FORMAT_INVALID;
+  }
+
+  XPlane(int width, int height, int format)
+      : mWidth(width), mHeight(height), mStride(width) {
+    mFormat = format;
+    mpData = std::make_unique<T>(width * height *
+                                 ximage::XImageBytesPerPixel(format));
+  }
+
+  XPlane(const XPlane<T> &that)
+      : mWidth(that.mWidth), mHeight(that.mHeight), mStride(that.mStride) {
+    mFormat = that.mFormat;
+    mpData = std::make_unique<T>(mStride * mHeight *
+                                 ximage::XImageBytesPerPixel(mFormat));
+    std::memcpy(
+        mpData.get(), that.mpData.get(),
+        mStride * mHeight * sizeof(T) * ximage::XImageBytesPerPixel(mFormat));
+  }
+
+  XPlane(const XPlane<T> &&x) noexcept
+      : mWidth(x.mWidth), mHeight(x.mHeight), mStride(x.mStride) {
+    mFormat = x.mFormat;
+    mpData = std::move(x.mpData);
+  }
+
+  XPlane operator=(const XPlane<T> x) {
+    mWidth = x.mWidth;
+    mHeight = x.mHeight;
+    mStride = x.mStride;
+    mFormat = x.mFormat;
+    std::swap(mpData, x.mpData);
+    return *this;
+  }
+
+ private:
+  int mWidth;   // In bytes
+  int mHeight;  // In bytes
+  int mStride;  // In bytes
+  std::unique_ptr<T> mpData;
+  int mFormat;
+};
+
 // Forward declaration of the template
 template <typename T>
 class XImage;
@@ -26,6 +77,9 @@ class XImage {
   // Rule of 5 -
   // https://stackoverflow.com/questions/3106110/what-is-move-semantics
 
+  // Null image
+  // has 0 planes and all the pointers are nullptr
+  // and the format is invalid
   XImage() : mWidth(0), mHeight(0), mStride(0), mNumberOfPlanes(0) {
     std::cout << "XImage() : " << (void *)this << std::endl;
     for (int plane = 0; plane < MAX_NUMBER_OF_PLANES; ++plane) {
@@ -41,7 +95,26 @@ class XImage {
     mpData[0] = std::make_unique<T>(width * height *
                                     ximage::XImageBytesPerPixel(mFormat[0]));
 
-    for (int plane = 1; plane < mNumberOfPlanes; ++plane) {
+    for (int plane = 1; plane < MAX_NUMBER_OF_PLANES; ++plane) {
+      mpData[plane] = nullptr;
+      mFormat[plane] = XIMAGE_FORMAT_INVALID;
+    }
+  }
+
+  XImage(int width, int height, int numberOfPlanes, int format[])
+      : mWidth(width),
+        mHeight(height),
+        mStride(width),
+        mNumberOfPlanes(numberOfPlanes) {
+    std::cout << "XImage(int, int, int, int[]) : " << (void *)this << std::endl;
+
+    for (int plane = 0; plane < mNumberOfPlanes; ++plane) {
+      mFormat[plane] = format[plane];
+      mpData[plane] = std::make_unique<T>(
+          width * height * ximage::XImageBytesPerPixel(mFormat[plane]));
+    }
+
+    for (int plane = numberOfPlanes; plane < MAX_NUMBER_OF_PLANES; ++plane) {
       mpData[plane] = nullptr;
       mFormat[plane] = XIMAGE_FORMAT_INVALID;
     }
@@ -108,9 +181,9 @@ class XImage {
   void setHeight(int height) { mHeight = height; }
 
  private:
-  int mWidth;
-  int mHeight;
-  int mStride;
+  int mWidth;   // In pixels
+  int mHeight;  // In pixels
+  int mStride;  // In pixels
 
   int mNumberOfPlanes;
   std::unique_ptr<T> mpData[MAX_NUMBER_OF_PLANES];

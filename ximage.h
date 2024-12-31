@@ -4,8 +4,11 @@
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <memory>
+#include <utility>
 
 #include "ximage_formats.h"
+#include "ximage_utils.h"
 
 #define MAX_NUMBER_OF_PLANES 8
 
@@ -23,73 +26,72 @@ class XImage {
   // Rule of 5 -
   // https://stackoverflow.com/questions/3106110/what-is-move-semantics
 
-  XImage() : mWidth(0), mHeight(0), mStride(0), mNumberOfPlanes(1) {
-    for (int plane = 0; plane < mNumberOfPlanes; ++plane) {
+  XImage() : mWidth(0), mHeight(0), mStride(0), mNumberOfPlanes(0) {
+    std::cout << "XImage() : " << (void *)this << std::endl;
+    for (int plane = 0; plane < MAX_NUMBER_OF_PLANES; ++plane) {
+      mFormat[plane] = XIMAGE_FORMAT_INVALID;
       mpData[plane] = nullptr;
     }
-    std::cout << "XImage() : " << (void *)mpData << std::endl;
   }
 
   XImage(int width, int height)
       : mWidth(width), mHeight(height), mStride(width), mNumberOfPlanes(1) {
-    std::cout << "XImage(int, int) : " << (void *)mpData << std::endl;
+    std::cout << "XImage(int, int) : " << (void *)this << std::endl;
+    mFormat[0] = XIMAGE_FORMAT_GRAY;
+    mpData[0] = std::make_unique<T>(width * height *
+                                    ximage::XImageBytesPerPixel(mFormat[0]));
 
-    mpData[0] = new T[width * height * sizeof(T)];
     for (int plane = 1; plane < mNumberOfPlanes; ++plane) {
       mpData[plane] = nullptr;
+      mFormat[plane] = XIMAGE_FORMAT_INVALID;
     }
   }
 
-  XImage(const XImage<T> &that) {
-    std::cout << "XImage(const XImage<T> &) : " << (void *)mpData << std::endl;
-    mWidth = that.mWidth;
-    mHeight = that.mHeight;
-    mStride = that.mStride;
-
-    mNumberOfPlanes = that.mNumberOfPlanes;
+  XImage(const XImage<T> &that)
+      : mWidth(that.mWidth),
+        mHeight(that.mHeight),
+        mStride(that.mStride),
+        mNumberOfPlanes(that.mNumberOfPlanes) {
+    std::cout << "XImage(const XImage<T> &) : " << (void *)this << std::endl;
     for (int plane = 0; plane < mNumberOfPlanes; ++plane) {
-      mpData[plane] = new T[mStride * mHeight];
-      std::memcpy(mpData[plane], that.mpData[plane],
-                  mStride * mHeight * sizeof(T));
+      mFormat[plane] = that.mFormat[plane];
+      mpData[plane] = std::make_unique<T>(
+          mStride * mHeight * ximage::XImageBytesPerPixel(mFormat[plane]));
+      std::memcpy(mpData[plane].get(), that.mpData[plane].get(),
+                  mStride * mHeight * sizeof(T) *
+                      ximage::XImageBytesPerPixel(mFormat[plane]));
     }
   }
 
-  XImage(const XImage<T> &&x) {
-    std::cout << "XImage(const XImage<T> &&) : " << (void *)mpData << std::endl;
-    mWidth = x.mWidth;
-    mHeight = x.mHeight;
-    mStride = x.mStride;
-
-    mNumberOfPlanes = x.mNumberOfPlanes;
+  XImage(const XImage<T> &&x) noexcept
+      : mWidth(x.mWidth),
+        mHeight(x.mHeight),
+        mStride(x.mStride),
+        mNumberOfPlanes(x.mNumberOfPlanes) {
+    std::cout << "XImage(const XImage<T> &&) : " << (void *)this << std::endl;
     for (int plane = 0; plane < mNumberOfPlanes; ++plane) {
-      mpData[plane] = x.mpData[plane];
-      x.mpData[plane] = nullptr;
+      mFormat[plane] = x.mFormat[plane];
+      mpData[plane] = std::move(x.mpData[plane]);
     }
   }
 
   XImage operator=(const XImage<T> x) {
-    std::cout << "XImage operator=(const XImage<T>) : " << (void *)mpData
+    std::cout << "XImage operator=(const XImage<T>) : " << (void *)this
               << std::endl;
     mWidth = x.mWidth;
     mHeight = x.mHeight;
     mStride = x.mStride;
-
     mNumberOfPlanes = x.mNumberOfPlanes;
     for (int plane = 0; plane < mNumberOfPlanes; ++plane) {
+      mFormat[plane] = x.mFormat[plane];
       std::swap(mpData[plane], x.mpData[plane]);
     }
-
     return *this;
   }
 
   // Destructor
   virtual ~XImage() {
-    std::cout << "~XImage() : " << (void *)mpData << std::endl;
-    for (int plane = 0; plane < mNumberOfPlanes; ++plane) {
-      if (mpData[plane]) {
-        delete[] mpData[plane];
-      }
-    }
+    std::cout << "~XImage() : " << (void *)this << std::endl;
   }
 
   // Getters
@@ -98,7 +100,7 @@ class XImage {
 
   // Return a reference to pixel (x,y) in plane
   T &operator()(int x, int y, int plane = 0) {
-    return mpData[plane][y * mStride + x];
+    return mpData[plane].get()[y * mStride + x];
   }
 
   // Setters
@@ -111,7 +113,8 @@ class XImage {
   int mStride;
 
   int mNumberOfPlanes;
-  T *mpData[MAX_NUMBER_OF_PLANES];
+  std::unique_ptr<T> mpData[MAX_NUMBER_OF_PLANES];
+  int mFormat[MAX_NUMBER_OF_PLANES];
 
   friend std::ostream &operator<< <>(std::ostream &os, const XImage<T> &x);
 };
@@ -121,19 +124,29 @@ template <typename T>
 std::ostream &operator<<(std::ostream &os, const XImage<T> &x) {
   os << "XImage<" << typeid(T).name() << ">(" << x.mWidth << ", " << x.mHeight
      << ")" << std::endl;
-
+  os << "Number of planes: " << x.mNumberOfPlanes << std::endl;
   for (int plane = 0; plane < x.mNumberOfPlanes; ++plane) {
-    os << "Plane " << plane << std::endl;
-    // If the plane is less than 6 by 6 then print the data
-    if (x.mWidth <= 6 && x.mHeight <= 6) {
-      for (int i = 0; i < x.mHeight; ++i) {
-        for (int j = 0; j < x.mWidth; ++j) {
-          os << std::setw(4) << (int)x.mpData[plane][i * x.mStride + j] << " ";
-        }
-        os << std::endl;
-      }
-    }
+    os << " | -- Plane " << plane << std::endl;
+    os << " |    | -- Format: "
+       << ximage::XImageFormatToString(x.mFormat[plane]) << std::endl;
+    os << " |    | -- Bytes per plane: "
+       << x.mStride * x.mHeight * ximage::XImageBytesPerPixel(x.mFormat[plane])
+       << std::endl;
   }
+
+  // for (int plane = 0; plane < x.mNumberOfPlanes; ++plane) {
+  //   os << "Plane " << plane << std::endl;
+  //   // If the plane is less than 6 by 6 then print the data
+  //   if (x.mWidth <= 6 && x.mHeight <= 6) {
+  //     for (int i = 0; i < x.mHeight; ++i) {
+  //       for (int j = 0; j < x.mWidth; ++j) {
+  //         os << std::setw(4) << (int)x.mpData[plane].get()[i * x.mStride + j]
+  //            << " ";
+  //       }
+  //       os << std::endl;
+  //     }
+  //   }
+  // }
 
   return os;
 }
